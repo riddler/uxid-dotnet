@@ -15,7 +15,7 @@ namespace Riddler.Tests;
 // here.
 public class NoGlobalStateTests
 {
-    [Fact] // (sabotage: a private static int field in an internal library class -> Assert.Empty() Failure: Collection was not empty)
+    [Fact] // (sabotage: a private static int field written by an internal method -> Assert.Empty() Failure: Collection was not empty)
     public void LibraryDeclaresNoReassignableStaticField()
     {
         var library = Assembly.Load(new AssemblyName("Riddler.Uxid"));

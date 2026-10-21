@@ -148,8 +148,10 @@ and the target frameworks `netstandard2.0` and `net10.0`. Its package id is
 (with `AGENTS.md` beside them), the wurk manifest (`.claude/wurk.json`), the
 Claude Code settings (`.claude/settings.json`), the tracker's tracked files
 under `.beads/`, and the scaffold: the solution `Riddler.Uxid.slnx`, the
-library project `src/Riddler.Uxid/Riddler.Uxid.csproj` with no source file
-yet and so no public API, the test project `tests/Riddler.Uxid.Tests/`, the
+library project `src/Riddler.Uxid/Riddler.Uxid.csproj` with time-based
+generation as its public API (`Uxid.Generate` with `UxidOptions`,
+`Uxid.ParseSize`, `UxidSize`, `UxidCase`, and the refusal `UxidException`
+with its `UxidErrorCode`), the test project `tests/Riddler.Uxid.Tests/`, the
 shared build settings (`Directory.Build.props`, `.editorconfig`,
 `nuget.config`), the SDK pin (`mise.toml`, `global.json`), the gate tasks in
 `mise.toml`, `LICENSE`, `CHANGELOG.md`, the changelog fragment rule
