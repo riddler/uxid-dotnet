@@ -135,14 +135,15 @@ Also avoid `bd edit`, which opens `$EDITOR` and blocks. Use
 
 `uxid` for .NET: prefixed, K-sortable, Stripe-style identifiers a person can
 read, copy and route back to their resource, wire-compatible with the Elixir
-reference `uxid` and checked against its conformance corpus. That is the
-package this repository is being built into. It is to cover generation
-(random, deterministic and monotonic), decoding and the validity checks, with
-no package dependencies, `RandomNumberGenerator` as the default byte source,
-and the target frameworks `netstandard2.0` and `net10.0`. Its package id is
-`Riddler.Uxid` on nuget.org, its assembly `Riddler.Uxid`, and its namespace
-`Riddler`; the library is to live in `src/Riddler.Uxid/`, its tests under
-`tests/`.
+reference `uxid` and checked against its conformance corpus. This repository
+is that package. It covers generation (random, deterministic and monotonic),
+decoding and the validity checks, with no package dependencies,
+`RandomNumberGenerator` as the default byte source, and the target frameworks
+`netstandard2.0` and `net10.0`. Its package id is `Riddler.Uxid` on
+nuget.org, its assembly `Riddler.Uxid`, and its namespace `Riddler`; the
+library lives in `src/Riddler.Uxid/`, its tests under `tests/`. The version
+is the `<Version>` property in `src/Riddler.Uxid/Riddler.Uxid.csproj`, and
+`CHANGELOG.md` says what each version holds.
 
 **What the head holds today.** The tree carries these agent instructions
 (with `AGENTS.md` beside them), the wurk manifest (`.claude/wurk.json`), the
