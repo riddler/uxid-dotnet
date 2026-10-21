@@ -310,9 +310,9 @@ public class GenerateTests
     }
 
     // The error names are read off an exception, the one place they appear.
-    // Three of the codes name refusals of deterministic and monotonic
-    // generation, which no public call in the library makes, so the
-    // exception is built by reflection over its internal constructor.
+    // Two of the codes name refusals of monotonic generation, which no
+    // public call in the library makes, so the exception is built by
+    // reflection over its internal constructor.
     private static string CodeNameOf(UxidErrorCode code)
     {
         var exception = (UxidException)Activator.CreateInstance(
