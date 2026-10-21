@@ -75,6 +75,42 @@ internal static class Base32
         }
     }
 
+    /// <summary>
+    /// The 5-bit value of a symbol in either case, or -1 for any other
+    /// character: the letters I, L, O and U, and every character outside the
+    /// two alphabets, have none.
+    /// </summary>
+    internal static int Value(char symbol)
+    {
+        var lower = symbol is >= 'A' and <= 'Z' ? (char)(symbol + ('a' - 'A')) : symbol;
+        return lower switch
+        {
+            >= '0' and <= '9' => lower - '0',
+            >= 'a' and <= 'h' => lower - 'a' + 10,
+            'j' or 'k' => lower - 'j' + 18,
+            'm' or 'n' => lower - 'm' + 20,
+            >= 'p' and <= 't' => lower - 'p' + 22,
+            >= 'v' and <= 'z' => lower - 'v' + 27,
+            _ => -1,
+        };
+    }
+
+    /// <summary>
+    /// Reads <paramref name="count"/> symbols from <paramref name="start"/>
+    /// as one integer, 5 bits each, most significant first. The caller
+    /// passes symbols only.
+    /// </summary>
+    internal static long ReadInteger(string text, int start, int count)
+    {
+        long value = 0;
+        for (var index = start; index < start + count; index++)
+        {
+            value = (value << 5) | (long)Value(text[index]);
+        }
+
+        return value;
+    }
+
     private static string Alphabet(UxidCase letterCase) =>
         letterCase == UxidCase.Upper ? _upperAlphabet : _lowerAlphabet;
 }
