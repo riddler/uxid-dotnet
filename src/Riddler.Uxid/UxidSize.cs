@@ -2,7 +2,9 @@ namespace Riddler;
 
 /// <summary>
 /// An id's size, which fixes the random field's width, and so the body
-/// length, for standard and for compact time.
+/// length, for standard and for compact time, and a deterministic body's
+/// count of hash characters. Each member's numeric value is fixed, so a
+/// stored integer keeps its meaning.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -23,17 +25,17 @@ namespace Riddler;
 public enum UxidSize
 {
     /// <summary>Extra small (<c>xs</c> or <c>xsmall</c>): no random field in standard time.</summary>
-    Xs,
+    Xs = 0,
 
     /// <summary>Small (<c>s</c> or <c>small</c>).</summary>
-    S,
+    S = 1,
 
     /// <summary>Medium (<c>m</c> or <c>medium</c>).</summary>
-    M,
+    M = 2,
 
     /// <summary>Large (<c>l</c> or <c>large</c>).</summary>
-    L,
+    L = 3,
 
     /// <summary>Extra large (<c>xl</c> or <c>xlarge</c>), the default.</summary>
-    Xl,
+    Xl = 4,
 }

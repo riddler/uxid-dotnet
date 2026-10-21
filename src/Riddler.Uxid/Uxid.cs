@@ -6,9 +6,10 @@ namespace Riddler;
 
 /// <summary>
 /// Prefixed, K-sortable identifiers a person can read, wire-compatible with
-/// the Elixir uxid package: an optional prefix and delimiter, then a body of
-/// a millisecond time and a random field in Crockford Base32, as uxid's
-/// wire-format specification lays it out.
+/// the Elixir uxid package: an optional prefix and delimiter, then a body in
+/// Crockford Base32, either a millisecond time and a random field or, for a
+/// deterministic id, a marker and a hash, as uxid's wire-format
+/// specification lays it out.
 /// </summary>
 public static class Uxid
 {
@@ -25,8 +26,10 @@ public static class Uxid
     private const long _marker = 31;
 
     /// <summary>
-    /// Generates a time-based id: the prefix and the delimiter (none for no
-    /// prefix), then the time field and the random field.
+    /// Generates an id: the prefix and the delimiter (none for no prefix),
+    /// then the time field and the random field; or, when
+    /// <see cref="UxidOptions.From"/> is set, the deterministic body derived
+    /// from it, for which no clock and no byte source is read.
     /// </summary>
     /// <param name="options">
     /// The options to build the id from; null takes every default (see
@@ -36,11 +39,14 @@ public static class Uxid
     /// <exception cref="UxidException">
     /// The request is one the wire format refuses:
     /// <see cref="UxidErrorCode.RandSizeTooLarge"/>,
-    /// <see cref="UxidErrorCode.RandWidthMismatch"/> or
-    /// <see cref="UxidErrorCode.CompactTimeOutOfRange"/>.
+    /// <see cref="UxidErrorCode.RandWidthMismatch"/>,
+    /// <see cref="UxidErrorCode.CompactTimeOutOfRange"/> or
+    /// <see cref="UxidErrorCode.RandWithFrom"/>.
     /// </exception>
     /// <exception cref="ArgumentException">
-    /// The prefix is null, or the delimiter is null or empty.
+    /// The prefix is null, the delimiter is null or empty, or, for a
+    /// deterministic id, the prefix or <see cref="UxidOptions.From"/> is not
+    /// well-formed UTF-16 (a lone surrogate).
     /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The size or case is not one of its enum's members, the random field
@@ -71,6 +77,28 @@ public static class Uxid
         if (options.Case is not (UxidCase.Lower or UxidCase.Upper))
         {
             throw new ArgumentOutOfRangeException(nameof(options), options.Case, "The case is not a UxidCase member.");
+        }
+
+        if (options.From is { } from)
+        {
+            if (options.Rand is not null)
+            {
+                throw new UxidException(
+                    UxidErrorCode.RandWithFrom,
+                    "Fixed random bytes cannot be used with From: a deterministic id has no random field.");
+            }
+
+            try
+            {
+                return Deterministic(prefix, delimiter, from, options.Size, options.Case);
+            }
+            catch (EncoderFallbackException malformed)
+            {
+                throw new ArgumentException(
+                    "The prefix and From must be well-formed UTF-16 to be hashed as UTF-8; a lone surrogate has no UTF-8 bytes.",
+                    nameof(options),
+                    malformed);
+            }
         }
 
         var time = options.Time ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -170,6 +198,64 @@ public static class Uxid
         UxidSize.L => compact ? 8 : 7,
         _ => 10,
     };
+
+    /// <summary>
+    /// The number of hash characters a deterministic body carries at a size,
+    /// one fewer than the standard body length; the caller has checked that
+    /// the size is a member, so the last arm is <see cref="UxidSize.Xl"/>.
+    /// </summary>
+    private static int HashChars(UxidSize size) => size switch
+    {
+        UxidSize.Xs => 9,
+        UxidSize.S => 13,
+        UxidSize.M => 17,
+        UxidSize.L => 21,
+        _ => 25,
+    };
+
+    /// <summary>
+    /// Builds a deterministic id: the prefix and the delimiter (none for no
+    /// prefix), the marker, then the first 5 bits per hash character of the
+    /// SHA-256 digest of the prefix's UTF-8 bytes, a zero byte, the string's
+    /// UTF-8 bytes, a zero byte and the count of hash characters as one byte.
+    /// </summary>
+    /// <exception cref="EncoderFallbackException">
+    /// The prefix or the string holds a lone surrogate.
+    /// </exception>
+    private static string Deterministic(string prefix, string delimiter, string from, UxidSize size, UxidCase letterCase)
+    {
+        var count = HashChars(size);
+        var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        var prefixBytes = utf8.GetBytes(prefix);
+        var fromBytes = utf8.GetBytes(from);
+
+        var input = new byte[prefixBytes.Length + 1 + fromBytes.Length + 1 + 1];
+        Buffer.BlockCopy(prefixBytes, 0, input, 0, prefixBytes.Length);
+        Buffer.BlockCopy(fromBytes, 0, input, prefixBytes.Length + 1, fromBytes.Length);
+        input[input.Length - 1] = (byte)count;
+
+        // netstandard2.0 has no static SHA256.HashData; there the hash object
+        // is created and disposed for this one digest.
+#if NET5_0_OR_GREATER
+        var digest = SHA256.HashData(input);
+#else
+        byte[] digest;
+        using (var sha256 = SHA256.Create())
+        {
+            digest = sha256.ComputeHash(input);
+        }
+#endif
+
+        var id = new StringBuilder(prefix.Length + delimiter.Length + 1 + count);
+        if (prefix.Length > 0)
+        {
+            id.Append(prefix).Append(delimiter);
+        }
+
+        id.Append(letterCase == UxidCase.Upper ? 'Z' : 'z');
+        Base32.AppendLeadingBits(id, digest, count, letterCase);
+        return id.ToString();
+    }
 
     /// <summary>
     /// Draws <paramref name="count"/> bytes from the caller's source, or from

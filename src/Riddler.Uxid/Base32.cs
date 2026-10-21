@@ -55,6 +55,26 @@ internal static class Base32
         }
     }
 
+    /// <summary>
+    /// Appends the first <c>5 x chars</c> bits of <paramref name="bytes"/>,
+    /// most significant bit first, as <paramref name="chars"/> characters of
+    /// 5 bits each, with no short group. Each character reads a 16-bit window
+    /// from the byte its bits start in, so the bytes must run at least one
+    /// byte past the bits written, as a 32-byte SHA-256 digest does for the
+    /// widest deterministic body (125 bits).
+    /// </summary>
+    internal static void AppendLeadingBits(StringBuilder text, byte[] bytes, int chars, UxidCase letterCase)
+    {
+        var alphabet = Alphabet(letterCase);
+        for (var index = 0; index < chars; index++)
+        {
+            var bit = 5 * index;
+            var at = bit >> 3;
+            var window = (bytes[at] << 8) | bytes[at + 1];
+            text.Append(alphabet[(window >> (11 - (bit & 7))) & 31]);
+        }
+    }
+
     private static string Alphabet(UxidCase letterCase) =>
         letterCase == UxidCase.Upper ? _upperAlphabet : _lowerAlphabet;
 }

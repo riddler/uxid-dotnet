@@ -6,7 +6,8 @@ namespace Riddler;
 /// <summary>
 /// The options <see cref="Uxid.Generate(UxidOptions?)"/> builds an id from.
 /// Every property is set at construction, and a property left unset takes
-/// the default it names: a time-based id with no prefix, size
+/// the default it names: a time-based id (no <see cref="From"/>) with no
+/// prefix, size
 /// <see cref="UxidSize.Xl"/>, the size's random field width, standard time,
 /// lower case, the delimiter <c>_</c>, the current time and random bytes
 /// from <see cref="System.Security.Cryptography.RandomNumberGenerator"/>.
@@ -24,7 +25,8 @@ public sealed class UxidOptions
 
     /// <summary>
     /// Gets the size, which fixes the random field's width and so the body
-    /// length. The default is <see cref="UxidSize.Xl"/>.
+    /// length; for a deterministic id (<see cref="From"/>) it fixes the count
+    /// of hash characters instead. The default is <see cref="UxidSize.Xl"/>.
     /// </summary>
     public UxidSize Size { get; init; } = UxidSize.Xl;
 
@@ -84,8 +86,9 @@ public sealed class UxidOptions
     /// a count of bytes and returns an array of exactly that many. Null, the
     /// default, reads them from
     /// <see cref="System.Security.Cryptography.RandomNumberGenerator"/>. It is
-    /// called once per id, and not at all when the random field is empty or
-    /// <see cref="Rand"/> is set. A source that returns null or an array of
+    /// called once per time-based id, and not at all when the random field is
+    /// empty, <see cref="Rand"/> is set or the id is deterministic
+    /// (<see cref="From"/>). A source that returns null or an array of
     /// another length is refused with <see cref="InvalidOperationException"/>;
     /// an exception the source throws reaches the caller unchanged.
     /// </summary>
@@ -108,4 +111,40 @@ public sealed class UxidOptions
     /// <see cref="ByteSource"/>. The bytes are read when the id is built.
     /// </summary>
     public IReadOnlyList<byte>? Rand { get; init; }
+
+    /// <summary>
+    /// Gets the string a deterministic id is derived from: when set, the id's
+    /// body is the marker <c>z</c> (<c>Z</c> in upper case) followed by a
+    /// SHA-256 hash of the prefix and this string, so the same prefix, string
+    /// and size always build the same id. Null, the default, builds a
+    /// time-based id. The empty string is a string to derive from, not none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The hash input is the prefix's UTF-8 bytes (none for no prefix), a zero
+    /// byte, this string's UTF-8 bytes, a zero byte and one byte holding the
+    /// body's count of hash characters; the body is the marker and the first
+    /// 5 bits per hash character of the digest. The size sets that count:
+    /// <see cref="UxidSize.Xs"/> 9, <see cref="UxidSize.S"/> 13,
+    /// <see cref="UxidSize.M"/> 17, <see cref="UxidSize.L"/> 21 and
+    /// <see cref="UxidSize.Xl"/> 25, so the body has a standard body's length,
+    /// and the same string at two sizes or under two prefixes gives unrelated
+    /// bodies. <see cref="Case"/> and <see cref="Delimiter"/> apply as they do
+    /// to a time-based id; case is not part of the hash input.
+    /// </para>
+    /// <para>
+    /// A deterministic id carries no time and no random field, so
+    /// <see cref="Time"/>, <see cref="CompactTime"/>, <see cref="RandSize"/>
+    /// and <see cref="ByteSource"/> are not read (there is no compact
+    /// deterministic form), and <see cref="Rand"/> set beside this property is
+    /// refused with <see cref="UxidErrorCode.RandWithFrom"/>. A prefix or a
+    /// string that is not well-formed UTF-16 (a lone surrogate) has no UTF-8
+    /// bytes and is refused with <see cref="ArgumentException"/>.
+    /// </para>
+    /// <para>
+    /// The id is exactly as guessable as the string: anyone who knows the
+    /// prefix, the string and the size can build it.
+    /// </para>
+    /// </remarks>
+    public string? From { get; init; }
 }
