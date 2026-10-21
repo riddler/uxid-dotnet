@@ -346,7 +346,7 @@ public static class Uxid
     /// has checked that the size is a member, so the last arm is
     /// <see cref="UxidSize.Xl"/>.
     /// </summary>
-    private static int RandBytes(UxidSize size, bool compact) => size switch
+    internal static int RandBytes(UxidSize size, bool compact) => size switch
     {
         UxidSize.Xs => compact ? 1 : 0,
         UxidSize.S => compact ? 3 : 2,
@@ -418,7 +418,7 @@ public static class Uxid
     /// <see cref="RandomNumberGenerator"/> when there is none. An empty field
     /// draws nothing.
     /// </summary>
-    private static byte[] Draw(Func<int, byte[]>? source, int count)
+    internal static byte[] Draw(Func<int, byte[]>? source, int count)
     {
         if (count == 0)
         {

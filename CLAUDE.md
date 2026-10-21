@@ -148,10 +148,12 @@ and the target frameworks `netstandard2.0` and `net10.0`. Its package id is
 (with `AGENTS.md` beside them), the wurk manifest (`.claude/wurk.json`), the
 Claude Code settings (`.claude/settings.json`), the tracker's tracked files
 under `.beads/`, and the scaffold: the solution `Riddler.Uxid.slnx`, the
-library project `src/Riddler.Uxid/Riddler.Uxid.csproj` with time-based and
-deterministic generation, decoding and the validity checks as its public API
-(`Uxid.Generate` with `UxidOptions`, `Uxid.ParseSize`, `UxidSize`, `UxidCase`,
-and the refusal `UxidException` with its `UxidErrorCode`; `Uxid.Decode` with
+library project `src/Riddler.Uxid/Riddler.Uxid.csproj` with time-based,
+deterministic and monotonic generation, decoding and the validity checks as
+its public API (`Uxid.Generate` with `UxidOptions`, `Uxid.ParseSize`,
+`UxidSize`, `UxidCase`, and the refusal `UxidException` with its
+`UxidErrorCode`; the monotonic generator `UxidMonotonic`, which takes the same
+`UxidOptions` and an optional `IUxidDraws`; `Uxid.Decode` with
 `UxidDecodeOptions`, answering a `UxidDecodeResult` that carries a
 `UxidDecoded` or a `UxidDecodeError`, `Uxid.TryDecode`, `Uxid.IsValid` and
 `Uxid.IsDeterministic`), the test project `tests/Riddler.Uxid.Tests/`, the
