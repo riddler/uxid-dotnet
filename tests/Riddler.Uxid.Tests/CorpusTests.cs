@@ -90,14 +90,26 @@ public class CorpusTests
         Assert.Contains("unknown member", failure.Message, StringComparison.Ordinal);
     }
 
-    [Fact] // (sabotage: missing rand read as empty -> Assert.Throws() Failure: Exception type was not an exact match)
-    public void RejectsACaseWithAMissingKey()
+    [Theory] // (sabotage: missing member read as undefined -> Assert.Throws() Failure: Exception type was not an exact match)
+    [InlineData("""{"expected":"hf7yat0001","id":"encode/x","input":{"case":"lower","compact":true,"prefix":null,"size":"xs","time":1700000000000}}""", "encode", "rand")]
+    [InlineData("""{"expected":"z","id":"deterministic/x","input":{"case":"lower","prefix":null,"size":"xs"}}""", "deterministic", "from")]
+    [InlineData("""{"expected":{"compact":false,"deterministic":false,"prefix":null,"size":"xs"},"id":"decode/x","input":"0000000000"}""", "decode", "time")]
+    [InlineData("""{"id":"invalid/x","input":{"decode":""}}""", "invalid", "expected_error")]
+    [InlineData("""{"expected":["hf7yat0000"],"id":"monotonic/x","input":{"compact":true,"initial_seed":0,"overflow_seed":null,"prefix":null,"size":"xs","times":[1700000000000]}}""", "monotonic", "steps")]
+    public void RejectsACaseWithAMissingKey(string line, string kind, string missing)
     {
-        const string line = """{"expected":"hf7yat0001","id":"encode/x","input":{"case":"lower","compact":true,"prefix":null,"size":"xs","time":1700000000000}}""";
+        Action run = kind switch
+        {
+            "encode" => () => CorpusRunner.Encode(line),
+            "deterministic" => () => CorpusRunner.Deterministic(line),
+            "decode" => () => CorpusRunner.Decode(line),
+            "invalid" => () => CorpusRunner.Invalid(line),
+            _ => () => CorpusRunner.Monotonic(line),
+        };
 
-        var failure = Assert.Throws<InvalidDataException>(() => CorpusRunner.Encode(line));
+        var failure = Assert.Throws<InvalidDataException>(run);
 
-        Assert.Contains("missing member rand", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("missing member " + missing, failure.Message, StringComparison.Ordinal);
     }
 
     [Theory] // (sabotage: a null prefix read as the text "null" -> Assert.Equal() Failure: Strings differ)

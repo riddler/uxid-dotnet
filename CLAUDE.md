@@ -161,11 +161,11 @@ shared build settings (`Directory.Build.props`, `.editorconfig`,
 `nuget.config`), the SDK pin (`mise.toml`, `global.json`), the gate tasks in
 `mise.toml`, `LICENSE`, `CHANGELOG.md`, the changelog fragment rule
 (`changelog.d/README.md`), the vendored conformance corpus (`conformance/`)
-and a short placeholder `README.md`; and the two GitHub Actions workflows,
+the user-facing `README.md` and `docs/wire-format.md`; and the two GitHub Actions workflows,
 CI (`.github/workflows/ci.yml`) and the release workflow
-(`.github/workflows/release.yml`). There is no user reference yet.
-The full README arrives with a later change, and the sections below that
-describe it describe what that change puts in place.
+(`.github/workflows/release.yml`). The API reference is the XML
+documentation of the public types; a public member without one fails the
+build.
 
 - **The corpus is the arbiter.** `conformance/` holds the corpus vendored
   from uxid-ex at a release tag: its case files, `manifest.json`, `schema/`
@@ -182,11 +182,11 @@ describe it describe what that change puts in place.
   mismatch is never repaired by rewriting a hash. An answer the corpus does
   not fix follows uxid-ex's spec at that tag.
 
-`README.md` is to be the user reference (what, why, install, one basic-usage
-block, compatibility, documentation); today it is a short placeholder saying
-the package is being built, and it ships inside the package
-(`PackageReadmeFile`). `CHANGELOG.md` records each release; today it holds
-only an Unreleased note.
+`README.md` is the user reference (what, why, install, one basic-usage
+block, compatibility, documentation) and ships inside the package
+(`PackageReadmeFile`); `docs/wire-format.md` points at the reference spec at
+the tag `conformance/SOURCE.json` names. `CHANGELOG.md` records each release;
+today it holds only an Unreleased note.
 
 ## Build & Test
 
