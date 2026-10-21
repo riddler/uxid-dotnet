@@ -72,8 +72,16 @@ name: Release
 #   push, therefore goes green once its steps pass, and it completes a
 #   version whose .snupkg push failed.
 # - Re-running every job re-runs `verify`, whose listing check stops the run
-#   once nuget.org lists the version. After any push succeeded, re-run the
-#   failed `publish` job alone.
+#   once nuget.org lists the version. Before nuget.org lists it (its
+#   validation and indexing can take some minutes after the push), that
+#   check passes and a full re-run builds and packs again: its `publish`
+#   would skip a file nuget.org already holds and push any other freshly
+#   packed, not as the first `verify` recorded it. Where the earlier
+#   attempt's artifact is still visible to the run, the upload step stops
+#   the re-run first: upload-artifact does not replace an artifact of the
+#   same name (its `overwrite` input stays at its default, false), so the
+#   upload fails, `publish` does not start, and nothing is published. After
+#   any push succeeded, re-run the failed `publish` job alone.
 #
 # nuget.org trusted publishing: the login step in `publish` (NuGet/login)
 # exchanges this run's OIDC token for a short-lived nuget.org API key, and
