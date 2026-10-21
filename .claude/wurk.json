@@ -1,0 +1,111 @@
+{
+  "wurk": 1,
+
+  "beads": {
+    "prefix": "uxcs",
+    "sync": "dolthub",
+    "topology": "beads",
+    "areas": {
+      "labels": [
+        "area:codec",
+        "area:monotonic",
+        "area:conformance",
+        "area:docs",
+        "area:build"
+      ],
+      "lands_alone": ["area:build"],
+      "always_batchable": ["upstream"]
+    }
+  },
+
+  "forge": {
+    "kind": "github",
+    "labels": {}
+  },
+
+  "gate": {
+    "full": ["mise", "run", "gate"],
+    "loop": ["mise", "run", "gate:loop"],
+    "build_paths": [
+      "src/",
+      "tests/",
+      "scripts/",
+      "Riddler.Uxid.sln",
+      "Riddler.Uxid.slnx",
+      "Directory.Build.props",
+      "Directory.Build.targets",
+      "Directory.Packages.props",
+      "global.json",
+      "mise.toml",
+      ".editorconfig",
+      ".globalconfig",
+      "NuGet.config",
+      "nuget.config",
+      ".config/dotnet-tools.json"
+    ],
+    "also_gated_paths": ["conformance/", "README.md"],
+    "moving_files": [
+      "mise.toml",
+      "global.json",
+      "Directory.Build.props",
+      "Directory.Build.targets",
+      "Directory.Packages.props",
+      ".editorconfig",
+      ".globalconfig"
+    ],
+    "sabotage": {
+      "test_roots": ["tests/"],
+      "test_pattern": "\\[(Fact|Theory)\\b",
+      "exempt_prefixes": [],
+      "note_forms": ["comment", "in_name"]
+    },
+    "project_level_skips": [],
+    "not_applicable_skips": []
+  },
+
+  "parallelism": {
+    "model": "worktree-per-issue",
+    "worktrees_dir": "../uxid-dotnet-worktrees",
+    "trust": ["mise", "trust", "{path}"],
+    "warm_clone": [],
+    "warm": [["mise", "exec", "--", "dotnet", "restore"]],
+    "repair_when": "*.csproj",
+    "repair": [["mise", "exec", "--", "dotnet", "restore"]],
+    "post_branch": []
+  },
+
+  "tmux": {
+    "session": "uxid-dotnet",
+    "model": "opus"
+  },
+
+  "models": {
+    "direction": "fable"
+  },
+
+  "artifacts": {
+    "plans": "docs/plans",
+    "research": "docs/research",
+    "filename": "YYMMDD-[id-]kebab"
+  },
+
+  "commits": {
+    "style": "s-form",
+    "subject_under": 72,
+    "body_line_max": 72,
+    "total_lines_max": 40,
+    "trailer": {
+      "key": "Refs"
+    }
+  },
+
+  "changelog": {
+    "mode": "fragments",
+    "dir": "changelog.d"
+  },
+
+  "release": {
+    "kind": "nuget",
+    "version_file": "src/Riddler.Uxid/Riddler.Uxid.csproj"
+  }
+}
