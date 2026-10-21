@@ -1,0 +1,430 @@
+name: Release
+
+# Publishes this package to nuget.org when a version tag is pushed, and only
+# when four things hold at the tagged commit: it is on the default branch,
+# the tag is `v` followed by the version src/Riddler.Uxid/Riddler.Uxid.csproj
+# states there (its <Version> property), nuget.org does not already list
+# that version, and the full quality gate is green there. Nothing else
+# triggers it - no branch push, no pull request, no manual dispatch.
+#
+# Two jobs, each checking out the tagged commit (github.sha):
+#
+# - `verify` (contents: read, and no other permission) runs the first three
+#   checks before anything is installed, then the full quality gate, then
+#   `dotnet pack` on the build the gate made, which writes the package
+#   (.nupkg) and its symbol package (.snupkg). It records the SHA-256 of
+#   each in a SHA256SUMS file, uploads the two packages and SHA256SUMS as
+#   one workflow artifact, and records the SHA-256 of SHA256SUMS itself as
+#   this job's output. Everything the gate and the pack run, runs here, in
+#   a job that cannot ask GitHub for an OIDC token.
+# - `publish` (contents: read and id-token: write, the only job that can ask
+#   for an OIDC token) starts only when `verify` succeeded. It installs the
+#   .NET SDK global.json pins and nothing else: no mise, no restore, no
+#   build. It runs the version check again rather than trusting `verify`'s
+#   result, because a re-run of this job alone can come long after `verify`
+#   ran. It downloads the artifact and stops unless SHA256SUMS has the
+#   SHA-256 `verify` recorded, every file in it has the SHA-256 SHA256SUMS
+#   lists, and the artifact holds no other package. Only then does it ask
+#   nuget.org for a key and push the two packages, the .nupkg first, as
+#   they were downloaded.
+#
+# Every action this workflow uses, in both jobs, is pinned to a full commit
+# SHA, with its version in a trailing comment. In `publish`, every step can
+# reach the OIDC request credentials, and a moved tag must not be able to
+# obtain a nuget.org key. In `verify`, the actions check out the source the
+# gate builds, install the toolchain that builds it and store the files
+# `publish` pushes, so a moved tag there could change what is published
+# without ever reaching a key. ci.yml pins its actions the same way.
+#
+# What a failure leaves behind. A failure in `verify` publishes nothing:
+# `publish` does not start and no key is asked for. A failure in `publish`
+# before the .nupkg push publishes nothing either. Once nuget.org accepts
+# the .nupkg, the version exists on nuget.org (after nuget.org's own
+# validation and indexing, which can take some minutes), whatever happens
+# after it: a failure after that push - in the .snupkg push or in the
+# address step - leaves the version on nuget.org, perhaps without its
+# symbols, and the run red. No failure moves or deletes the tag.
+#
+# A pushed version cannot be replaced: nuget.org never accepts the same
+# package id and version twice, and a package's owner cannot delete a
+# version, only unlist it, in the nuget.org console, which is the
+# maintainer's choice.
+# The remedy for a broken version is a new patch version, through a new
+# release prep and the tag that names it. This workflow never unlists or
+# deletes anything on nuget.org.
+#
+# Re-runs. The manual act this workflow needs is a re-run from the run's
+# page in the Actions tab, for a run that failed for a reason outside the
+# tagged commit: a registry or network error, nuget.org answering the
+# listing check with a status other than 200 or 404, a gate step that
+# failed on the runner rather than on the code, or a key request that
+# failed before nuget.org trusted this workflow. A failure the tagged commit
+# itself causes (it is not on the default branch, the tag and the csproj
+# name different versions, the gate is red) fails the same way on every
+# re-run.
+# - When `publish` failed, re-run the failed jobs: that re-runs `publish`
+#   alone, which reuses the artifact and the SHA-256 `verify` recorded
+#   while the artifact is kept. `publish` does not ask nuget.org whether it
+#   lists the version; both pushes pass --skip-duplicate, so a file
+#   nuget.org already holds is reported as already there and skipped rather
+#   than failing the step, and a file it lacks is pushed. A re-run of
+#   `publish` after a registry or network failure, before or after either
+#   push, therefore goes green once its steps pass, and it completes a
+#   version whose .snupkg push failed.
+# - Re-running every job re-runs `verify`, whose listing check stops the run
+#   once nuget.org lists the version. After any push succeeded, re-run the
+#   failed `publish` job alone.
+#
+# nuget.org trusted publishing: the login step in `publish` (NuGet/login)
+# exchanges this run's OIDC token for a short-lived nuget.org API key, and
+# the two push steps alone receive that key, through an environment
+# variable. The login step reads the operator's nuget.org profile name from
+# the repository secret NUGET_USER (a name, not a credential), the only
+# `secrets` expression in this file; no step prints it. No long-lived key
+# exists for this package, and the workflow names no GitHub environment.
+# The checkouts use GitHub's automatic per-job GITHUB_TOKEN, limited to that
+# job's `permissions`, and the artifact upload and download use the
+# credentials the runner provides for the run's own artifact storage.
+# nuget.org grants the key only once a trusted-publishing policy on
+# nuget.org names this repository's owner, this repository and this
+# workflow file, with no environment; until then the login step fails and
+# nothing is published.
+#
+# This file records the publish decision for this repository, which keeps no
+# decision records (CLAUDE.md, "Agent authority in this repo": the "Release
+# preps" paragraph and the paragraph after it, which says where a release
+# decision is recorded). This workflow is the only publisher: it publishes on
+# the push of the tag that names a merged release prep. An agent or a session
+# never runs `dotnet nuget push`, and a failed run is re-run from its Actions
+# page, never worked round by a local publish.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# The default for every job: contents: read, every other permission none.
+# Each job states its own permissions below, and only `publish` adds
+# id-token: write. The tag already exists when this runs, and nothing here
+# creates or pushes one.
+permissions:
+  contents: read
+
+# One run per tag, and a run in progress is never cancelled: a publish cut
+# off part way is worse than one that finishes.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify, gate and pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # contents: read for the checkout and the default branch fetch. No
+    # id-token: nothing in this job can ask GitHub for an OIDC token.
+    permissions:
+      contents: read
+
+    # The SHA-256 of SHA256SUMS, which `publish` matches before it pushes.
+    outputs:
+      sums_sha256: ${{ steps.pack.outputs.sums_sha256 }}
+
+    steps:
+      # The tagged commit, by SHA. Full history: the ancestry check below
+      # walks it.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      # The default branch is read from the push event itself, never written
+      # here, so a renamed default branch needs no edit to this file.
+      - name: Fetch the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test -n "$DEFAULT_BRANCH" || { echo "::error::the push event names no default branch" >&2; exit 1; }
+          git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+
+      - name: Check the tagged commit is on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse 'HEAD^{commit}')"
+          if ! git merge-base --is-ancestor "$commit" "origin/${DEFAULT_BRANCH}"; then
+            echo "::error::${GITHUB_REF_NAME} is on ${commit}, which is not on ${DEFAULT_BRANCH}; nothing is published" >&2
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} is on ${commit}, which is on ${DEFAULT_BRANCH}"
+
+      # The csproj is read with Python's XML reader (on the runner already),
+      # not with dotnet, so this check runs before any toolchain is
+      # installed. It stops unless the csproj holds exactly one <Version> and
+      # one <PackageId>. `publish` runs the same check again.
+      - name: Check the tag names the version in the csproj
+        run: |
+          set -euo pipefail
+          read -r package_id file_version < <(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("src/Riddler.Uxid/Riddler.Uxid.csproj").getroot()
+          def one(name):
+              found = [e.text.strip() for e in root.iter(name) if e.text and e.text.strip()]
+              if len(found) != 1:
+                  raise SystemExit(f"expected one <{name}> in the csproj, found {len(found)}")
+              return found[0]
+          print(one("PackageId"), one("Version"))
+          PY
+          )
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::${GITHUB_REF_NAME} names ${tag_version} but the csproj at the tagged commit says ${file_version}; nothing is published" >&2
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} matches ${package_id} version ${file_version} in the csproj"
+
+      # A version nuget.org already lists is reported, never published again
+      # (nuget.org would refuse the same id and version anyway). The flat
+      # container answers 404 for a package id with no version yet, and
+      # otherwise a list of every version it holds, in lower case. The
+      # package id is read from the csproj, so the version checked is the
+      # version of the package this run would publish. This read needs no
+      # key.
+      - name: Check nuget.org does not already list this version
+        run: |
+          set -euo pipefail
+          package_id="$(python3 -c 'import xml.etree.ElementTree as ET; print(next(e.text.strip() for e in ET.parse("src/Riddler.Uxid/Riddler.Uxid.csproj").getroot().iter("PackageId")))')"
+          version="${GITHUB_REF_NAME#v}"
+          lower_id="$(printf '%s' "$package_id" | tr '[:upper:]' '[:lower:]')"
+          lower_version="$(printf '%s' "$version" | tr '[:upper:]' '[:lower:]')"
+          index="$(mktemp)"
+          status="$(curl -sS -o "$index" -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/${lower_id}/index.json")"
+          case "$status" in
+            404)
+              echo "nuget.org lists no version of ${package_id} yet" ;;
+            200)
+              if jq -e --arg v "$lower_version" 'any(.versions[]; . == $v)' "$index" > /dev/null; then
+                echo "::error::nuget.org already lists ${package_id} ${version}; reported, not published again" >&2
+                exit 1
+              fi
+              echo "nuget.org does not list ${package_id} ${version} yet" ;;
+            *)
+              echo "::error::nuget.org answered ${status} for ${package_id}; nothing is published" >&2
+              exit 1 ;;
+          esac
+
+      # --- the toolchain and the full quality gate, exactly as ci.yml's gate
+      # job runs them.
+
+      # The toolchain comes from mise.toml, provisioned by mise itself: the
+      # .NET SDK at the version pinned there and in global.json. No tool
+      # cache is restored in this workflow: a release installs its tools
+      # fresh rather than from a cache another run wrote.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.8.2
+          cache: false
+
+      # The command is read out of .claude/wurk.json (gate.full), the gate an
+      # agent must have green before committing. It is read and executed
+      # inside the step rather than interpolated into `run:`, so a repository
+      # file never reaches the shell as expression text. The gate builds in
+      # Release; the CI variable GitHub sets makes it a
+      # ContinuousIntegrationBuild (Directory.Build.props).
+      - name: Full quality gate
+        run: |
+          set -euo pipefail
+          mapfile -t cmd < <(jq -er '.gate.full[]' .claude/wurk.json)
+          test "${#cmd[@]}" -gt 0 || { echo "::error::gate.full is empty" >&2; exit 1; }
+          echo "gate command (.claude/wurk.json gate.full): ${cmd[*]}"
+          "${cmd[@]}"
+
+      # --- end of the gate.
+
+      # The gate's build, coverage and package output lands under bin/, obj/
+      # and artifacts/, which .gitignore covers. A gate that left any changed
+      # file, or any untracked file that is not ignored, stops the release
+      # here, with the files named.
+      - name: Check the gate left the checkout clean
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "::error::the gate left changed or untracked files; nothing is published" >&2
+            exit 1
+          fi
+
+      # The release's own pack, into an empty directory outside the gate's
+      # artifacts/, from the Release build the gate made (--no-build). The
+      # step stops unless the directory then holds exactly the .nupkg and
+      # the .snupkg named for the package id and the tag's version, and no
+      # other file. SHA256SUMS lists the SHA-256 of each, and the SHA-256 of
+      # SHA256SUMS is this job's output.
+      - name: Pack the packages and record their SHA-256
+        id: pack
+        run: |
+          set -euo pipefail
+          package_id="$(python3 -c 'import xml.etree.ElementTree as ET; print(next(e.text.strip() for e in ET.parse("src/Riddler.Uxid/Riddler.Uxid.csproj").getroot().iter("PackageId")))')"
+          version="${GITHUB_REF_NAME#v}"
+          rm -rf release
+          mkdir -p release/packages
+          mise exec -- dotnet pack src/Riddler.Uxid/Riddler.Uxid.csproj --configuration Release --no-build --output release/packages
+          cd release
+          nupkg="packages/${package_id}.${version}.nupkg"
+          snupkg="packages/${package_id}.${version}.snupkg"
+          everything="$(find packages -type f | wc -l)"
+          if [ ! -f "$nupkg" ] || [ ! -f "$snupkg" ] || [ "$everything" -ne 2 ]; then
+            ls -la packages
+            echo "::error::dotnet pack did not leave exactly ${nupkg} and ${snupkg}; nothing is published" >&2
+            exit 1
+          fi
+          sha256sum "$nupkg" "$snupkg" > SHA256SUMS
+          cat SHA256SUMS
+          sums_sha256="$(sha256sum SHA256SUMS | cut -d ' ' -f 1)"
+          echo "SHA256SUMS sha256 ${sums_sha256}"
+          echo "sums_sha256=${sums_sha256}" >> "$GITHUB_OUTPUT"
+
+      # The two packages and SHA256SUMS, under release/, as one artifact
+      # `publish` downloads.
+      - name: Upload the packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: release/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to nuget.org
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # contents: read for the checkout; id-token: write lets the login step
+    # ask GitHub for the OIDC token nuget.org trusts. This is the only job
+    # that holds it.
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      # The same commit `verify` checked out, for global.json and the csproj.
+      # Nothing here fetches again, so the checkout keeps no credential in
+      # the repository's git config.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      # The same check as in `verify`, run again here: a re-run of this job
+      # alone does not re-run `verify`.
+      - name: Check the tag names the version in the csproj
+        run: |
+          set -euo pipefail
+          read -r package_id file_version < <(python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("src/Riddler.Uxid/Riddler.Uxid.csproj").getroot()
+          def one(name):
+              found = [e.text.strip() for e in root.iter(name) if e.text and e.text.strip()]
+              if len(found) != 1:
+                  raise SystemExit(f"expected one <{name}> in the csproj, found {len(found)}")
+              return found[0]
+          print(one("PackageId"), one("Version"))
+          PY
+          )
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$tag_version" != "$file_version" ]; then
+            echo "::error::${GITHUB_REF_NAME} names ${tag_version} but the csproj at the tagged commit says ${file_version}; nothing is published" >&2
+            exit 1
+          fi
+          echo "${GITHUB_REF_NAME} matches ${package_id} version ${file_version} in the csproj"
+
+      # The .NET SDK global.json pins, for `dotnet nuget push` alone. Nothing
+      # in this job restores, builds or packs.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Download the packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages
+          path: release
+
+      # The files to push are the ones `verify` packed, or nothing is
+      # published: SHA256SUMS has the SHA-256 `verify` recorded, each file it
+      # lists has the SHA-256 it lists, and release/packages/ holds those
+      # files and no other.
+      - name: Match the packages to the ones verify packed
+        env:
+          VERIFIED_SUMS_SHA256: ${{ needs.verify.outputs.sums_sha256 }}
+        run: |
+          set -euo pipefail
+          test -n "$VERIFIED_SUMS_SHA256" || { echo "::error::verify recorded no SHA256SUMS SHA-256; nothing is published" >&2; exit 1; }
+          cd release
+          test -f SHA256SUMS || { echo "::error::the artifact holds no SHA256SUMS; nothing is published" >&2; exit 1; }
+          sums_sha256="$(sha256sum SHA256SUMS | cut -d ' ' -f 1)"
+          if [ "$sums_sha256" != "$VERIFIED_SUMS_SHA256" ]; then
+            echo "::error::SHA256SUMS has sha256 ${sums_sha256}, but the one verify wrote has ${VERIFIED_SUMS_SHA256}; nothing is published" >&2
+            exit 1
+          fi
+          sha256sum --check --strict SHA256SUMS || { echo "::error::a package does not match SHA256SUMS; nothing is published" >&2; exit 1; }
+          listed="$(cut -d ' ' -f 3 SHA256SUMS | sort)"
+          present="$(find packages -type f | sort)"
+          if [ "$listed" != "$present" ]; then
+            printf 'listed:\n%s\npresent:\n%s\n' "$listed" "$present"
+            echo "::error::release/packages/ holds files SHA256SUMS does not list; nothing is published" >&2
+            exit 1
+          fi
+          echo "release/packages/ matches the SHA256SUMS verify wrote (sha256 ${sums_sha256})"
+
+      # The key is asked for after every check, so it is granted only for a
+      # commit that is about to publish. NUGET_USER is the nuget.org profile
+      # name the trusted-publishing policy belongs to. Pinned by SHA, as
+      # every action in this job is.
+      - name: Get a short-lived nuget.org API key
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # The key reaches the two push steps alone, through NUGET_API_KEY.
+      # --skip-duplicate turns nuget.org's answer for a file it already holds
+      # into a skipped push rather than a failure, which is what lets a
+      # re-run of this job finish a publish a failed attempt started. The
+      # .nupkg is pushed with --no-symbols, and the .snupkg by its own step
+      # after it. No git tag is created or pushed.
+      - name: Push the package to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          files=(release/packages/*.nupkg)
+          test "${#files[@]}" -eq 1 || { echo "::error::expected one .nupkg in release/packages/" >&2; exit 1; }
+          dotnet nuget push "${files[0]}" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
+
+      - name: Push the symbol package to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          files=(release/packages/*.snupkg)
+          test "${#files[@]}" -eq 1 || { echo "::error::expected one .snupkg in release/packages/" >&2; exit 1; }
+          dotnet nuget push "${files[0]}" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      # The package id and the version both come from the csproj at the
+      # tagged commit, which the version check above matched to the tag.
+      # nuget.org shows the version once its validation and indexing finish,
+      # which can take some minutes after the push.
+      - name: Print the published version's address
+        run: |
+          set -euo pipefail
+          package_id="$(python3 -c 'import xml.etree.ElementTree as ET; print(next(e.text.strip() for e in ET.parse("src/Riddler.Uxid/Riddler.Uxid.csproj").getroot().iter("PackageId")))')"
+          version="${GITHUB_REF_NAME#v}"
+          echo "https://www.nuget.org/packages/${package_id}/${version}"

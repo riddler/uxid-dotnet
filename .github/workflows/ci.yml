@@ -1,0 +1,133 @@
+name: CI
+
+# Two jobs. `gate` runs the full quality gate - the command an agent must
+# have green before committing - on Linux, on the .NET SDK mise.toml and
+# global.json pin. `windows` runs the tests on Windows, where the test
+# project targets net481 as well as net10.0: the net481 run consumes the
+# library's netstandard2.0 build, so it is the proof that the
+# netstandard2.0 build works on .NET Framework. The full gate's tasks are
+# POSIX shell and do not run on Windows (CLAUDE.md, "Build & Test").
+#
+# Every action in both jobs is pinned to a full commit SHA, with its version
+# in a trailing comment, as every action in release.yml is.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Read-only: nothing here writes to the repository, asks for an OIDC token,
+# reads a secret or authenticates to a registry.
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request supersedes the run in
+# progress.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Full quality gate (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # The toolchain comes from mise.toml, provisioned by mise itself: the
+      # .NET SDK at the version pinned there, which global.json pins as well.
+      # A version written into this file would drift the first time those
+      # pins move. The action installs mise at the version below and runs
+      # `mise install` against mise.toml.
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.8.2
+
+      # The gate is mise.toml's `gate` task: the SDK check (it prints the SDK
+      # version and the `dotnet` it runs, and fails unless the SDK is a 10.x
+      # one), dotnet format, the Release build with warnings as errors, the
+      # tests with coverage, and the pack with package validation. The
+      # command is read out of .claude/wurk.json (gate.full) rather than
+      # written here, so the gate CI runs and the gate an agent must have
+      # green are one definition with one place to change it. It is read and
+      # executed inside the step rather than interpolated into `run:`, so a
+      # repository file never reaches the shell as expression text.
+      - name: Full quality gate
+        run: |
+          set -euo pipefail
+          mapfile -t cmd < <(jq -er '.gate.full[]' .claude/wurk.json)
+          test "${#cmd[@]}" -gt 0 || { echo "::error::gate.full is empty" >&2; exit 1; }
+          echo "gate command (.claude/wurk.json gate.full): ${cmd[*]}"
+          "${cmd[@]}"
+
+      # A gate that rewrites a tracked file or leaves an untracked file that
+      # is not ignored passes locally only because the change is then
+      # committed; here it is a failure, as it is before a publish.
+      - name: Check the gate left the checkout clean
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "::error::the gate left changed or untracked files" >&2
+            exit 1
+          fi
+
+  windows:
+    name: Tests on Windows (net10.0 and net481)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # The SDK global.json pins. .NET Framework 4.8.1, which the net481
+      # tests run on, is part of the Windows runner image.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Print the SDK
+        run: |
+          set -euo pipefail
+          echo "dotnet SDK $(dotnet --version) at $(command -v dotnet)"
+
+      # One Release build of the solution. On Windows the test project
+      # targets net10.0 and net481, and its net481 build references the
+      # library's netstandard2.0 build.
+      - name: Build
+        run: dotnet build Riddler.Uxid.slnx --configuration Release
+
+      # The library the net481 tests load is the netstandard2.0 build, byte
+      # for byte, or the job stops here.
+      - name: Check the net481 tests load the netstandard2.0 build
+        run: |
+          set -euo pipefail
+          built=src/Riddler.Uxid/bin/Release/netstandard2.0/Riddler.Uxid.dll
+          loaded=tests/Riddler.Uxid.Tests/bin/Release/net481/Riddler.Uxid.dll
+          test -f "$built" || { echo "::error::no ${built}" >&2; exit 1; }
+          test -f "$loaded" || { echo "::error::no ${loaded}" >&2; exit 1; }
+          if ! cmp -s "$built" "$loaded"; then
+            echo "::error::${loaded} differs from ${built}" >&2
+            exit 1
+          fi
+          echo "${loaded} is the netstandard2.0 build (sha256 $(sha256sum "$loaded" | cut -d ' ' -f 1))"
+
+      # Each framework is its own step, so the log names each one's test
+      # count under its own heading.
+      - name: Test on net481 (the netstandard2.0 build)
+        run: dotnet test --project tests/Riddler.Uxid.Tests/Riddler.Uxid.Tests.csproj --configuration Release --no-build --framework net481
+
+      - name: Test on net10.0
+        run: dotnet test --project tests/Riddler.Uxid.Tests/Riddler.Uxid.Tests.csproj --configuration Release --no-build --framework net10.0

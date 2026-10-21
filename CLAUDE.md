@@ -51,7 +51,7 @@ should do the work, stop before the irreversible step, and report.
 | `bd close <id>` | never for a mirrored bead whose other half is not merged to its own repo's `origin/main`; a mirrored bead whose other half has ALSO landed may be closed by the campaign conductor under a consent naming this exception, both halves together, each verified against its remote; otherwise the operator's call | for a bead whose description carries a `mirrors:` line while its other half is unlanded, campaign consent included |
 | `bd dolt push` | bead state changed locally **and** the git side of the same change has already reached `origin`; inside a campaign, the conductor pushes (atomically across the campaign's trackers) | as a way to publish beads for work that is not on `origin/main` yet |
 | a release prep (a version bump and a changelog promotion) and its tag | a release bead a campaign consent names, or the operator names in their own words; the tag once that prep is merged to `origin/main`, naming its version at the merged commit | on any other bead or on `main`; the tag before the prep is on `origin/main` |
-| a release, a push of a package to nuget.org | never - an agent or a session never pushes a package to nuget.org (no `dotnet nuget push`, no API key of any kind, no upload of any kind); the release workflow (`.github/workflows/release.yml`, which a later change adds) publishes by trusted publishing on the tag push the release-prep row above already allows | always - a failed workflow is re-run from its Actions page, never worked round by a local publish |
+| a release, a push of a package to nuget.org | never - an agent or a session never pushes a package to nuget.org (no `dotnet nuget push`, no API key of any kind, no upload of any kind); the release workflow (`.github/workflows/release.yml`) publishes by trusted publishing on the tag push the release-prep row above already allows | always - a failed workflow is re-run from its Actions page, never worked round by a local publish |
 
 The organizing principle: the human gate belongs where an action stops being
 reversible. A commit on a per-bead branch is undone with
@@ -93,8 +93,7 @@ version (`vX.Y.Z`) and pushes the tag. The README's install line, once the
 README carries one, is `dotnet add package Riddler.Uxid` with no version, so a
 prep leaves it as it is. An agent or a session never pushes a package to
 nuget.org: the release workflow (`.github/workflows/release.yml`, the file the
-release publishes from, which a later change adds) publishes by trusted
-publishing on that tag push, and a failed workflow is re-run from its Actions
+release publishes from) publishes by trusted publishing on that tag push, and a failed workflow is re-run from its Actions
 page, never worked round by a local publish. The workflow's header records
 what each of its steps checks and what a failure before or after the push
 means. nuget.org accepts that workflow's push only once a trusted-publishing
@@ -153,11 +152,13 @@ library project `src/Riddler.Uxid/Riddler.Uxid.csproj` with no source file
 yet and so no public API, the test project `tests/Riddler.Uxid.Tests/`, the
 shared build settings (`Directory.Build.props`, `.editorconfig`,
 `nuget.config`), the SDK pin (`mise.toml`, `global.json`), the gate tasks in
-`mise.toml`, `LICENSE`, `CHANGELOG.md` and a short placeholder `README.md`.
-There is no CI, no corpus and no user reference yet. CI, the release
-workflow, the vendored corpus and the full README arrive with later changes,
-and the sections below that describe them describe what those changes put in
-place.
+`mise.toml`, `LICENSE`, `CHANGELOG.md`, the changelog fragment rule
+(`changelog.d/README.md`) and a short placeholder `README.md`; and the two
+GitHub Actions workflows, CI (`.github/workflows/ci.yml`) and the release
+workflow (`.github/workflows/release.yml`). There is no corpus and no user
+reference yet. The vendored corpus and the full README arrive with later
+changes, and the sections below that describe them describe what those
+changes put in place.
 
 - **The corpus is the arbiter.** `conformance/` is to hold the corpus vendored
   from uxid-ex at a release tag: its case files, `manifest.json`, `schema/`
@@ -207,10 +208,14 @@ platform; the test project adds `net481` only when it builds on Windows.
 Coverage is measured on `net10.0` alone. The gate's tasks are POSIX shell,
 so the full gate runs on macOS and Linux, not on Windows.
 
-CI, once a later change adds it (`.github/workflows/ci.yml`), is to run the
-full gate on the SDK `global.json` pins, and a job on Windows that runs the
-tests on `net481`, which consumes the `netstandard2.0` build: that job is the
-proof of the `netstandard2.0` floor.
+CI (`.github/workflows/ci.yml`) runs on pushes to `main`, on pull requests
+and on a manual dispatch. It runs the full gate on Linux, on the SDK
+`mise.toml` and `global.json` pin, and a job on Windows that builds the
+solution on the SDK `global.json` pins, checks that the library the `net481`
+tests load is the `netstandard2.0` build byte for byte, and runs the tests on
+`net481` and on `net10.0`: that job is the proof of the `netstandard2.0`
+floor. Every action in both workflows is pinned to a full commit SHA with its
+version in a trailing comment.
 
 ### This repo's own gate rules
 
@@ -279,7 +284,7 @@ satellite conventions rather than inventing a second set.
 - Changelog: a change a user of the API could notice adds a fragment under
   `changelog.d/`, named for the bead (`changelog.d/uxcs-abc.md`), in the same
   request; tests, docs, tooling and gate changes take none
-  (`changelog.d/README.md`, once it exists, states the rule and the format).
+  (`changelog.d/README.md` states the rule and the format).
   New version sections in `CHANGELOG.md` keep the file's own heading shape;
   existing history is not rewritten.
 - Commit messages: simple present tense ("Adds ...", "Fixes ..."), body

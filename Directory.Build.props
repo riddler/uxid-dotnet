@@ -3,8 +3,9 @@
     Settings every project in the repository shares: the language level, the
     analyzers in their All mode with every warning an error, code style
     enforced in the build, and deterministic output. ContinuousIntegrationBuild
-    is set only when the CI environment variable is true, so local builds keep
-    their local paths in the PDBs and CI builds map them to the repository.
+    is set whenever the CI environment variable is set to any non-empty value
+    (GitHub Actions sets it to true), so local builds keep their local paths in
+    the PDBs and CI builds map them to the repository.
   -->
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
@@ -17,7 +18,7 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(CI)' == 'true'">
+  <PropertyGroup Condition="'$(CI)' != ''">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
 </Project>
