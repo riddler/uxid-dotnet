@@ -35,8 +35,17 @@ public class MonotonicTests
     [InlineData(null, "s", true, new[] { 1700000000000, 1700000000000 }, 0L, new[] { 4096L }, null, new[] { "hf7yat0000000", "hf7yat0000800" })]
     public void ReplaysCorpusCases(string? prefix, string size, bool compact, long[] times, long initialSeed, long[] steps, long? overflowSeed, string[] expected)
     {
+        // net481 has no ArgumentNullException.ThrowIfNull.
+#if NET6_0_OR_GREATER
         ArgumentNullException.ThrowIfNull(times);
         ArgumentNullException.ThrowIfNull(steps);
+#else
+        if (times is null || steps is null)
+        {
+            throw new ArgumentNullException(times is null ? nameof(times) : nameof(steps));
+        }
+#endif
+
         var seeds = new List<long> { initialSeed };
         if (overflowSeed is long seed)
         {
