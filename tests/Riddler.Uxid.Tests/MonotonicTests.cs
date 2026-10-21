@@ -7,12 +7,9 @@ using Xunit;
 
 namespace Riddler.Tests;
 
-// Monotonic generation against the wire format's rule. The first theory's
-// rows are the conformance corpus's monotonic cases (uxid-ex at v2.10.0,
-// conformance/monotonic.json), copied as their inputs, draws and expected
-// ids, and the refusals are its two monotonic generate-refusal cases
-// (conformance/invalid.json); the full corpus runner replaces them as the
-// arbiter once the corpus is vendored.
+// Monotonic generation against the wire format's rule. The conformance
+// corpus's monotonic cases run in CorpusTests; the tests here pin what the
+// corpus does not fix or checks only in part.
 public class MonotonicTests
 {
     private const long _corpusTime = 1700000000000;
@@ -25,43 +22,6 @@ public class MonotonicTests
     private static readonly int[] _fiveThenThree = [5, 3];
 
     private static readonly int[] _twoThenOne = [2, 1];
-
-    [Theory] // (sabotage: overflow keeps T, not T + 1 -> Assert.Equal() Failure: Collections differ)
-    [InlineData("usr", "xl", false, new[] { 1700000000000, 1700000000000, 1700000000000, 1700000000000 }, 123456789L, new[] { 1L, 1099511627776, 42 }, null, new[] { "usr_01hf7yat0000000000003nqk8n", "usr_01hf7yat0000000000003nqk8p", "usr_01hf7yat0000000001003nqk8p", "usr_01hf7yat0000000001003nqka0" })]
-    [InlineData("usr", "m", false, new[] { 1700000000000, 1699999999999, 1699999999990, 1700000000000 }, 1000L, new[] { 5L, 1048576, 7 }, null, new[] { "usr_01hf7yat00000000z8", "usr_01hf7yat00000000zd", "usr_01hf7yat00000100zd", "usr_01hf7yat00000100zm" })]
-    [InlineData("usr", "s", false, new[] { 1700000000000, 1700000000000, 1700000000000, 1700000000000, 1700000000000, 1700000000001 }, 65000L, new[] { 200L, 250, 100, 7, 3 }, 1234L, new[] { "usr_01hf7yat00zqm0", "usr_01hf7yat00ztr0", "usr_01hf7yat00zyn0", "usr_01hf7yat010k90", "usr_01hf7yat010kc1", "usr_01hf7yat010ke0" })]
-    [InlineData("usr", "xs", true, new[] { 1700000000000, 1700000000000, 1699999999999 }, 250L, new[] { 5L, 16 }, 9L, new[] { "usr_hf7yat00z2", "usr_hf7yat00z7", "usr_hf7yat0111" })]
-    [InlineData("usr", "l", true, new[] { 1700000000000 }, 0L, new long[0], null, new[] { "usr_hf7yat000000000000000" })]
-    [InlineData(null, "s", true, new[] { 1700000000000, 1700000000000 }, 0L, new[] { 4096L }, null, new[] { "hf7yat0000000", "hf7yat0000800" })]
-    public void ReplaysCorpusCases(string? prefix, string size, bool compact, long[] times, long initialSeed, long[] steps, long? overflowSeed, string[] expected)
-    {
-        // net481 has no ArgumentNullException.ThrowIfNull.
-#if NET6_0_OR_GREATER
-        ArgumentNullException.ThrowIfNull(times);
-        ArgumentNullException.ThrowIfNull(steps);
-#else
-        if (times is null || steps is null)
-        {
-            throw new ArgumentNullException(times is null ? nameof(times) : nameof(steps));
-        }
-#endif
-
-        var seeds = new List<long> { initialSeed };
-        if (overflowSeed is long seed)
-        {
-            seeds.Add(seed);
-        }
-
-        var draws = new ReplayDraws(seeds, steps);
-        var generator = new UxidMonotonic(
-            new UxidOptions { Prefix = prefix ?? string.Empty, Size = Uxid.ParseSize(size), CompactTime = compact },
-            draws);
-
-        var ids = times.Select(generator.Generate).ToArray();
-
-        Assert.Equal(expected, ids);
-        Assert.True(draws.Exhausted, "every seed and step the case carries is drawn");
-    }
 
     [Fact] // (sabotage: From check removed -> Assert.Throws() Failure: No exception was thrown)
     public void RefusesFromWithMonotonic()
@@ -380,31 +340,6 @@ public class MonotonicTests
         }
 
         return bytes;
-    }
-
-    // Replays recorded draws in order: each seed as a big-endian field of
-    // the width asked for, each step as given.
-    private sealed class ReplayDraws(IReadOnlyList<long> seeds, IReadOnlyList<long> steps) : IUxidDraws
-    {
-        private int _seed;
-        private int _step;
-
-        public bool Exhausted => _seed == seeds.Count && _step == steps.Count;
-
-        public byte[] DrawSeed(int width)
-        {
-            var value = seeds[_seed++];
-            var field = new byte[width];
-            for (var index = width - 1; index >= 0 && value > 0; index--)
-            {
-                field[index] = (byte)value;
-                value >>= 8;
-            }
-
-            return field;
-        }
-
-        public long DrawStep(int width) => steps[_step++];
     }
 
     // The same seed and step on every draw; safe to share across threads.

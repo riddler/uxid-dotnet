@@ -7,8 +7,8 @@
 # The .NET SDK is pinned here and again in global.json, so `dotnet` resolves
 # the same SDK with or without mise. The library targets netstandard2.0 and
 # net10.0; the tests run on net10.0 here, and on net481 as well on Windows.
-# The conformance corpus check joins the full gate when the corpus is
-# vendored under conformance/.
+# The conformance corpus check is part of the full gate: gate:corpus runs the
+# hash and case-count checks and every vendored case (conformance/).
 
 [tools]
 dotnet = "10.0.402"
@@ -66,6 +66,13 @@ done
 exit "$status"
 '''
 
+[tasks."gate:corpus"]
+description = "Check the vendored conformance corpus: its hash and case counts, then every case"
+run = '''
+set -eu
+dotnet test --solution Riddler.Uxid.slnx --configuration Release --framework net10.0 --no-build --filter-class Riddler.Tests.CorpusHashTests --filter-class Riddler.Tests.CorpusTests
+'''
+
 [tasks."gate:pack"]
 description = "Pack the library with package validation"
 run = '''
@@ -88,5 +95,6 @@ run = [
   { task = "gate:format" },
   { task = "gate:build" },
   { task = "gate:coverage" },
+  { task = "gate:corpus" },
   { task = "gate:pack" },
 ]

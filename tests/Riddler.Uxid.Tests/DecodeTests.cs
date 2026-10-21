@@ -3,11 +3,9 @@ using Xunit;
 
 namespace Riddler.Tests;
 
-// Decoding against the wire format. The vectors are the conformance corpus's
-// decode cases and its decode refusals (uxid-ex at v2.10.0,
-// conformance/decode.json and conformance/invalid.json), copied as their
-// inputs and expected answers; the full corpus runner replaces them as the
-// arbiter once the corpus is vendored. The clock window is the corpus
+// Decoding against the wire format. The conformance corpus's decode cases and
+// decode refusals run in CorpusTests; the tests here pin what the corpus
+// does not fix or checks only in part. The clock window is the corpus
 // README's: its compact cases hold for a decoder clock from one day before
 // 1700000000000 ms, inclusive, to one day before 2^40 + 1065151889407 ms,
 // exclusive.
@@ -19,62 +17,6 @@ public class DecodeTests
     private const long _guardLastValid = 1065151889407;
     private const long _windowStart = _corpusTime - _oneDay;
     private const long _windowEnd = _window + _guardLastValid - _oneDay;
-
-    [Theory] // (sabotage: standard time keeps all 5 bits of its first symbol -> Assert.Equal() Failure: Values differ)
-    [InlineData("usr_01hf7yat0004hmasw9nf6yy093", "usr", "xl", false, false, 1700000000000L)]
-    [InlineData("usr_hf7yat0004hmasw9nf6yy093", "usr", "xl", true, false, 1700000000000L)]
-    [InlineData("usr_01hf7yat0004hmasw9nf61", "usr", "l", false, false, 1700000000000L)]
-    [InlineData("usr_hf7yat0004hmasw9nf6yf", "usr", "l", true, false, 1700000000000L)]
-    [InlineData("usr_01hf7yat0004hmasw9", "usr", "m", false, false, 1700000000000L)]
-    [InlineData("usr_hf7yat0004hmasw9n3", "usr", "m", false, false, 51950139736068L)]
-    [InlineData("usr_01hf7yat0004h1", "usr", "s", false, false, 1700000000000L)]
-    [InlineData("usr_hf7yat0004hm5", "usr", "s", true, false, 1700000000000L)]
-    [InlineData("usr_01hf7yat00", "usr", "xs", false, false, 1700000000000L)]
-    [InlineData("usr_hf7yat0001", "usr", "xs", false, false, 51950139736065L)]
-    [InlineData("usr_01HF7YAT0004HMASW9NF6YY093", "usr", "xl", false, false, 1700000000000L)]
-    [InlineData("01hf7yat0004hmasw9nf6yy093", null, "xl", false, false, 1700000000000L)]
-    [InlineData("a_b_01hf7yat000001", "a_b", "s", false, false, 1700000000000L)]
-    [InlineData("usr_yzzzzzzz04hm5", "usr", "s", true, false, 1065151889407L)]
-    [InlineData("usr_zcvt7epac0t1ebcsjfyf7cwz25", "usr", "xl", false, true, null)]
-    [InlineData("cus_zt9vnyfd85bff0", "cus", "s", false, true, null)]
-    [InlineData("zqz4cwzgyw8ks97869", null, "m", false, true, null)]
-    [InlineData("usr_ZCVT7EPAC0T1EBCSJFYF7CWZ25", "usr", "xl", false, true, null)]
-    public void DecodesCorpusCases(string input, string? prefix, string size, bool compact, bool deterministic, long? time)
-    {
-        var result = Uxid.Decode(input, AtClock(_corpusTime));
-
-        Assert.True(result.IsSuccess);
-        AssertDecoded(result.Value, prefix, Uxid.ParseSize(size), compact, deterministic, time);
-        Assert.Null(result.Error);
-        Assert.Null(result.ErrorName);
-    }
-
-    [Theory] // (sabotage: alphabet checked before length -> Assert.Equal() Failure: Values differ)
-    [InlineData("", UxidDecodeError.Empty, "empty")]
-    [InlineData("usr_", UxidDecodeError.Empty, "empty")]
-    [InlineData("a_b_", UxidDecodeError.Empty, "empty")]
-    [InlineData("_", UxidDecodeError.Empty, "empty")]
-    [InlineData("usr_01hf7yat000", UxidDecodeError.InvalidLength, "invalid_length")]
-    [InlineData("usr_01hf7yat00000g40r40m30e20", UxidDecodeError.InvalidLength, "invalid_length")]
-    [InlineData("usr_01hf7yat00000g40r40m30e2090", UxidDecodeError.InvalidLength, "invalid_length")]
-    [InlineData("usr", UxidDecodeError.InvalidLength, "invalid_length")]
-    [InlineData("usr_01hu7yat00000g40r40m30e209", UxidDecodeError.InvalidCharacter, "invalid_character")]
-    [InlineData("usr_01hf7yat00000g4lr40m30e209", UxidDecodeError.InvalidCharacter, "invalid_character")]
-    [InlineData("usr_01hf7yat00000g40r40mO0e209", UxidDecodeError.InvalidCharacter, "invalid_character")]
-    [InlineData("usr_01hf7yat00-00g40r40m30e209", UxidDecodeError.InvalidCharacter, "invalid_character")]
-    [InlineData("usr_zcvt7epac0t1ebcsjfyf7cwzi5", UxidDecodeError.InvalidCharacter, "invalid_character")]
-    [InlineData("01hf7yat00000g40r40m30e2é", UxidDecodeError.InvalidCharacter, "invalid_character")]
-    [InlineData("01hf7yat00000g40r40m30e20é", UxidDecodeError.InvalidLength, "invalid_length")]
-    [InlineData("usr_01hf7yat00u", UxidDecodeError.InvalidLength, "invalid_length")]
-    public void RefusesCorpusDecodeCases(string input, UxidDecodeError error, string name)
-    {
-        var result = Uxid.Decode(input, AtClock(_corpusTime));
-
-        Assert.False(result.IsSuccess);
-        Assert.Null(result.Value);
-        Assert.Equal(error, result.Error);
-        Assert.Equal(name, result.ErrorName);
-    }
 
     [Theory] // (sabotage: o read as a symbol (0) -> Assert.Equal() Failure: Values differ)
     [InlineData('I')]
