@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Riddler.Uxid/Riddler.Uxid.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Riddler.Uxid.Tests/Riddler.Uxid.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -147,11 +147,16 @@ and the target frameworks `netstandard2.0` and `net10.0`. Its package id is
 
 **What the head holds today.** The tree carries these agent instructions
 (with `AGENTS.md` beside them), the wurk manifest (`.claude/wurk.json`), the
-Claude Code settings (`.claude/settings.json`) and the tracker's tracked files
-under `.beads/`, and nothing else: no project, no `mise.toml` and so no gate
-task, no CI, no corpus and no README. The build, the gate, CI, the release
-workflow, the vendored corpus and the README arrive with later changes, and
-the sections below that describe them describe what those changes put in
+Claude Code settings (`.claude/settings.json`), the tracker's tracked files
+under `.beads/`, and the scaffold: the solution `Riddler.Uxid.slnx`, the
+library project `src/Riddler.Uxid/Riddler.Uxid.csproj` with no source file
+yet and so no public API, the test project `tests/Riddler.Uxid.Tests/`, the
+shared build settings (`Directory.Build.props`, `.editorconfig`,
+`nuget.config`), the SDK pin (`mise.toml`, `global.json`), the gate tasks in
+`mise.toml`, `LICENSE`, `CHANGELOG.md` and a short placeholder `README.md`.
+There is no CI, no corpus and no user reference yet. CI, the release
+workflow, the vendored corpus and the full README arrive with later changes,
+and the sections below that describe them describe what those changes put in
 place.
 
 - **The corpus is the arbiter.** `conformance/` is to hold the corpus vendored
@@ -166,20 +171,21 @@ place.
   mismatch is never repaired by rewriting a hash. An answer the corpus does
   not fix follows uxid-ex's spec at that tag.
 
-`README.md`, once it exists, is the user reference (what, why, install, one
-basic-usage block, compatibility, documentation), and it is to ship inside
-the package. `CHANGELOG.md`, once it exists, records each release.
+`README.md` is to be the user reference (what, why, install, one basic-usage
+block, compatibility, documentation); today it is a short placeholder saying
+the package is being built, and it ships inside the package
+(`PackageReadmeFile`). `CHANGELOG.md` records each release; today it holds
+only an Unreleased note.
 
 ## Build & Test
 
-None of this runs on today's head: there is no `mise.toml`, no `global.json`
-and no project yet. The change that adds the project adds the gate, and from
-then on this section describes it.
-
-The gate tasks are to live in `mise.toml`, which pins the .NET SDK; the same
-SDK is pinned a second time in `global.json`, so `dotnet` resolves the same
-SDK with or without mise, and the gate is to print the first line of
-`dotnet --info` so a run names the SDK it ran on.
+The gate tasks live in `mise.toml`, which pins the .NET SDK; the same SDK is
+pinned a second time in `global.json` (with `rollForward` `latestFeature`),
+so `dotnet` resolves the same SDK with or without mise. `global.json` also
+selects Microsoft.Testing.Platform as the `dotnet test` runner, which xUnit
+v3 and coverlet's `coverlet.MTP` need. The gate's first step prints the SDK
+version and the path of the `dotnet` it runs, and fails unless the SDK is a
+10.x one, so a run names the SDK it ran on.
 
 ```bash
 mise install            # the .NET SDK and the tools mise.toml pins
@@ -187,11 +193,19 @@ mise run gate:loop      # inner loop
 mise run gate           # full gate
 ```
 
-The full gate is to run, in order: the first line of `dotnet --info`,
-`dotnet format --verify-no-changes`, the build with the analyzers on and
-every warning an error, the xUnit tests with coverlet coverage of the library
-(failing under 90 percent of lines), `dotnet pack` with package validation,
-and, once the corpus is vendored, the conformance corpus check.
+The full gate runs, in order: the SDK check above,
+`dotnet format --verify-no-changes`, the Release build with the analyzers on
+and every warning an error, the xUnit tests with coverlet coverage of the
+library (failing under 90 percent of its lines, in total), and `dotnet pack`
+with package validation; the conformance corpus check joins it when the
+corpus is vendored. The inner loop builds and runs the tests without
+coverage. While `src/Riddler.Uxid/` holds no source file, the coverage step
+runs the tests and collects coverage with no threshold and says so, because
+coverlet fails any threshold on an assembly with no lines; the threshold
+applies from the first source file on. The tests run on `net10.0` on every
+platform; the test project adds `net481` only when it builds on Windows.
+Coverage is measured on `net10.0` alone. The gate's tasks are POSIX shell,
+so the full gate runs on macOS and Linux, not on Windows.
 
 CI, once a later change adds it (`.github/workflows/ci.yml`), is to run the
 full gate on the SDK `global.json` pins, and a job on Windows that runs the
