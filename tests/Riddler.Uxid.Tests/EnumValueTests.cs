@@ -36,4 +36,13 @@ public class EnumValueTests
     {
         Assert.Equal(expected, (int)code);
     }
+
+    [Theory] // (sabotage: UxidDecodeError.InvalidLength renumbered to 7 -> Assert.Equal() Failure: Values differ)
+    [InlineData(UxidDecodeError.Empty, 0)]
+    [InlineData(UxidDecodeError.InvalidLength, 1)]
+    [InlineData(UxidDecodeError.InvalidCharacter, 2)]
+    public void DecodeErrorValuesAreFixed(UxidDecodeError error, int expected)
+    {
+        Assert.Equal(expected, (int)error);
+    }
 }
