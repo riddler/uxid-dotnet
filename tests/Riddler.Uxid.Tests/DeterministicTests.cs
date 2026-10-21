@@ -4,40 +4,12 @@ using Xunit;
 
 namespace Riddler.Tests;
 
-// Deterministic ids against the wire format. The vectors are the conformance
-// corpus's deterministic cases and its rand-with-from refusal (uxid-ex at
-// v2.10.0, conformance/deterministic.json and conformance/invalid.json),
-// copied as their inputs and expected strings, each distinct input once;
-// a null prefix in the corpus is no prefix, written here as the empty
-// string. The full corpus runner replaces them as the arbiter once the
-// corpus is vendored.
+// Deterministic ids against the wire format. The conformance corpus's
+// deterministic cases and its rand-with-from refusal run in CorpusTests; the
+// tests here pin what the corpus does not fix or checks only in part.
 public class DeterministicTests
 {
     private const string _from = "alice@example.com";
-
-    [Theory] // (sabotage: count byte left out of the hash input -> Assert.Equal() Failure: Strings differ)
-    [InlineData("usr", "xl", "lower", "alice@example.com", "usr_zcvt7epac0t1ebcsjfyf7cwz25")]
-    [InlineData("cus", "s", "lower", "acme-corp", "cus_zt9vnyfd85bff0")]
-    [InlineData("", "m", "lower", "alice@example.com", "zqz4cwzgyw8ks97869")]
-    [InlineData("usr", "xs", "lower", "alice@example.com", "usr_z1yhw20vag")]
-    [InlineData("usr", "s", "lower", "alice@example.com", "usr_z5rtsrkhx2h4dr")]
-    [InlineData("usr", "m", "lower", "alice@example.com", "usr_zt8naccefxhwnrmscd")]
-    [InlineData("usr", "l", "lower", "alice@example.com", "usr_zwbz6myvgz7ehe3nceap5n")]
-    [InlineData("", "xl", "lower", "alice@example.com", "z4krgegf6drn563pvqhya4tsx9")]
-    [InlineData("usr", "xl", "upper", "alice@example.com", "usr_ZCVT7EPAC0T1EBCSJFYF7CWZ25")]
-    [InlineData("cus", "m", "lower", "café", "cus_zfsx9se75671f9kdjv")]
-    public void DerivesCorpusVectors(string prefix, string size, string letterCase, string from, string expected)
-    {
-        var options = new UxidOptions
-        {
-            Prefix = prefix,
-            Size = Uxid.ParseSize(size),
-            Case = letterCase == "upper" ? UxidCase.Upper : UxidCase.Lower,
-            From = from,
-        };
-
-        Assert.Equal(expected, Uxid.Generate(options));
-    }
 
     [Theory] // (sabotage: Rand beside From not refused -> Assert.Throws() Failure: No exception was thrown)
     [InlineData("00010203040506070809")]

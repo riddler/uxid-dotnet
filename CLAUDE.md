@@ -112,8 +112,8 @@ paragraph, and in the header of the workflow it governs; a change a user of
 the API could notice is a changelog fragment (Conventions, below). The ID
 format itself is not decided here: it is uxid-ex's wire-format spec,
 `guides/wire-format.md` in https://github.com/riddler/uxid-ex, read at the
-tag the vendored corpus names (`conformance/SOURCE.json`, once the corpus is
-vendored). That this repository keeps no decision records was decided by the
+tag the vendored corpus names (`conformance/SOURCE.json`). That this
+repository keeps no decision records was decided by the
 conductor under a standing consent, 2026-10-21; a future API decision may
 start a `docs/adr` directory.
 
@@ -160,21 +160,24 @@ its public API (`Uxid.Generate` with `UxidOptions`, `Uxid.ParseSize`,
 shared build settings (`Directory.Build.props`, `.editorconfig`,
 `nuget.config`), the SDK pin (`mise.toml`, `global.json`), the gate tasks in
 `mise.toml`, `LICENSE`, `CHANGELOG.md`, the changelog fragment rule
-(`changelog.d/README.md`) and a short placeholder `README.md`; and the two
-GitHub Actions workflows, CI (`.github/workflows/ci.yml`) and the release
-workflow (`.github/workflows/release.yml`). There is no corpus and no user
-reference yet. The vendored corpus and the full README arrive with later
-changes, and the sections below that describe them describe what those
-changes put in place.
+(`changelog.d/README.md`), the vendored conformance corpus (`conformance/`)
+and a short placeholder `README.md`; and the two GitHub Actions workflows,
+CI (`.github/workflows/ci.yml`) and the release workflow
+(`.github/workflows/release.yml`). There is no user reference yet.
+The full README arrives with a later change, and the sections below that
+describe it describe what that change puts in place.
 
-- **The corpus is the arbiter.** `conformance/` is to hold the corpus vendored
+- **The corpus is the arbiter.** `conformance/` holds the corpus vendored
   from uxid-ex at a release tag: its case files, `manifest.json`, `schema/`
   and `README.md`, each copied byte for byte, with the tag, commit and hash
   recorded in `conformance/SOURCE.json` (the reference's generator source,
   its `source/`, is not needed to run the cases and is not vendored). The
   vendored files are never edited, and every case passes with no skip list:
   a case this port cannot pass is reported against uxid-ex with its
-  evidence, never skipped or worked round here. A corpus bump copies every
+  evidence, never skipped or worked round here. `CorpusHashTests` (under
+  `tests/`) recomputes `corpus_hash` and each `case_count` by the
+  reference's rule, and `CorpusTests` runs every case of every file and
+  rejects a case member it does not know. A corpus bump copies every
   file again at the new tag and records that tag in `SOURCE.json`; a hash
   mismatch is never repaired by rewriting a hash. An answer the corpus does
   not fix follows uxid-ex's spec at that tag.
@@ -205,8 +208,9 @@ The full gate runs, in order: the SDK check above,
 `dotnet format --verify-no-changes`, the Release build with the analyzers on
 and every warning an error, the xUnit tests with coverlet coverage of the
 library (failing under 90 percent of its lines, in total), and `dotnet pack`
-with package validation; the conformance corpus check joins it when the
-corpus is vendored. The inner loop builds and runs the tests without
+with package validation; the conformance corpus check (`gate:corpus`: the
+hash and case counts, then every vendored case) runs after the coverage step.
+The inner loop builds and runs the tests without
 coverage. While `src/Riddler.Uxid/` holds no source file, the coverage step
 runs the tests and collects coverage with no threshold and says so, because
 coverlet fails any threshold on an assembly with no lines; the threshold

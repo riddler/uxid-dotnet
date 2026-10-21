@@ -4,53 +4,12 @@ using Xunit;
 
 namespace Riddler.Tests;
 
-// Generation against the wire format. The vectors are a hand-picked subset
-// of the conformance corpus's encode and generate-refusal cases (uxid-ex at
-// v2.10.0, conformance/encode.json and conformance/invalid.json), copied as
-// their inputs and expected strings; the full corpus runner replaces them as
-// the arbiter once the corpus is vendored.
+// Generation against the wire format. The conformance corpus's encode and
+// generate-refusal cases run in CorpusTests; the tests here pin what the
+// corpus does not fix or checks only in part.
 public class GenerateTests
 {
     private const long _corpusTime = 1700000000000;
-
-    [Theory] // (sabotage: short random group padded, not raw -> Assert.Equal() Failure: Strings differ)
-    [InlineData("xs", false, "lower", "usr", "", 1700000000000, "usr_01hf7yat00")]
-    [InlineData("xs", true, "lower", "usr", "01", 1700000000000, "usr_hf7yat0001")]
-    [InlineData("s", false, "lower", "usr", "0123", 1700000000000, "usr_01hf7yat0004h1")]
-    [InlineData("s", true, "lower", "usr", "012345", 1700000000000, "usr_hf7yat0004hm5")]
-    [InlineData("m", false, "lower", "usr", "0123456789", 1700000000000, "usr_01hf7yat0004hmasw9")]
-    [InlineData("m", true, "lower", "usr", "0123456789ab", 1700000000000, "usr_hf7yat0004hmasw9n3")]
-    [InlineData("l", false, "lower", "usr", "0123456789abcd", 1700000000000, "usr_01hf7yat0004hmasw9nf61")]
-    [InlineData("l", true, "lower", "usr", "0123456789abcdef", 1700000000000, "usr_hf7yat0004hmasw9nf6yf")]
-    [InlineData("xl", false, "lower", "usr", "0123456789abcdef0123", 1700000000000, "usr_01hf7yat0004hmasw9nf6yy093")]
-    [InlineData("xl", true, "lower", "usr", "0123456789abcdef0123", 1700000000000, "usr_hf7yat0004hmasw9nf6yy093")]
-    [InlineData("xs", true, "upper", "usr", "01", 1700000000000, "usr_HF7YAT0001")]
-    [InlineData("l", false, "upper", "usr", "0123456789abcd", 1700000000000, "usr_01HF7YAT0004HMASW9NF61")]
-    [InlineData("xs", true, "lower", "cus", "ff", 1700000000000, "cus_hf7yat00z7")]
-    [InlineData("s", false, "lower", "cus", "ffff", 1700000000000, "cus_01hf7yat00zzz1")]
-    [InlineData("s", true, "lower", "cus", "ffffff", 1700000000000, "cus_hf7yat00zzzzf")]
-    [InlineData("m", true, "lower", "cus", "ffffffffffff", 1700000000000, "cus_hf7yat00zzzzzzzzz7")]
-    [InlineData("l", false, "lower", "cus", "ffffffffffffff", 1700000000000, "cus_01hf7yat00zzzzzzzzzzz1")]
-    [InlineData("xl", true, "lower", "cus", "ffffffffffffffffffff", 1700000000000, "cus_hf7yat00zzzzzzzzzzzzzzzz")]
-    [InlineData("xs", false, "lower", "", "", 0, "0000000000")]
-    [InlineData("xs", false, "lower", "", "", 281474976710655, "7zzzzzzzzz")]
-    [InlineData("s", true, "lower", "usr", "012345", 1065151889407, "usr_yzzzzzzz04hm5")]
-    [InlineData("xl", false, "lower", "", "0123456789abcdef0123", 1700000000000, "01hf7yat0004hmasw9nf6yy093")]
-    [InlineData("s", false, "lower", "a_b", "0123", 1700000000000, "a_b_01hf7yat0004h1")]
-    public void EncodesCorpusVectors(string size, bool compact, string letterCase, string prefix, string rand, long time, string expected)
-    {
-        var options = new UxidOptions
-        {
-            Prefix = prefix,
-            Size = Uxid.ParseSize(size),
-            CompactTime = compact,
-            Case = letterCase == "upper" ? UxidCase.Upper : UxidCase.Lower,
-            Time = time,
-            Rand = Hex(rand),
-        };
-
-        Assert.Equal(expected, Uxid.Generate(options));
-    }
 
     [Theory] // (sabotage: marker guard compares to 32 -> Assert.Throws() Failure: No exception was thrown)
     [InlineData(2164663517184)]
