@@ -11,6 +11,8 @@ namespace Riddler;
 /// <see cref="UxidSize.Xl"/>, the size's random field width, standard time,
 /// lower case, the delimiter <c>_</c>, the current time and random bytes
 /// from <see cref="System.Security.Cryptography.RandomNumberGenerator"/>.
+/// A <see cref="UxidMonotonic"/> generator is built from the same options;
+/// its constructor says how it reads each one.
 /// </summary>
 public sealed class UxidOptions
 {
