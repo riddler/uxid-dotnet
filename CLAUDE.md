@@ -93,18 +93,18 @@ version (`vX.Y.Z`) and pushes the tag. The README's install line, once the
 README carries one, is `dotnet add package Riddler.Uxid` with no version, so a
 prep leaves it as it is. An agent or a session never pushes a package to
 nuget.org: the release workflow (`.github/workflows/release.yml`, the file the
-release publishes from) publishes by trusted publishing on that tag push, and a failed workflow is re-run from its Actions
-page, never worked round by a local publish. The workflow's header records
-what each of its steps checks and what a failure before or after the push
-means. nuget.org accepts that workflow's push only once a trusted-publishing
-policy on nuget.org names this repository's owner, this repository and that
-workflow file, a step in the nuget.org console that is the operator's and a
-prerequisite of the first publish. The workflow reads the operator's
-nuget.org profile name from the repository secret `NUGET_USER` (a name, not a
-credential); no agent reads, prints or sets it. Merging the prep follows this
-file's merge row, and nothing else this file reserves for the operator
-changes. A prep is cut only on a green full gate, which includes the
-conformance corpus check.
+release publishes from) publishes by trusted publishing on that tag push,
+and a failed workflow is re-run from its Actions page, never worked round by
+a local publish. The workflow's header records what each of its steps checks
+and what a failure before or after the push means. nuget.org accepts that
+workflow's push only once a trusted-publishing policy on nuget.org names this
+repository's owner, this repository and that workflow file, a step in the
+nuget.org console that is the operator's and a prerequisite of the first
+publish. The workflow reads the operator's nuget.org profile name from the
+repository secret `NUGET_USER` (a name, not a credential); no agent reads,
+prints or sets it. Merging the prep follows this file's merge row, and
+nothing else this file reserves for the operator changes. A prep is cut only
+on a green full gate, which includes the conformance corpus check.
 
 This repository keeps no decision records (`docs/adr`). A release or gating
 decision is recorded here, in the authority table and the Release preps
