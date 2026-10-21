@@ -11,7 +11,7 @@
     <PackageId>Riddler.Uxid</PackageId>
     <Authors>John Thornton</Authors>
     <Copyright>Copyright (c) 2026 John Thornton</Copyright>
-    <Description>Prefixed, K-sortable identifiers a person can read, wire-compatible with the Elixir uxid package.</Description>
+    <Description>Prefixed, K-sortable identifiers a person can read: random, deterministic and monotonic generation, decoding and validity checks. Follows the uxid wire format and passes its conformance corpus. No dependencies; netstandard2.0 and net10.0.</Description>
     <PackageTags>uxid;id;identifier;sortable;prefixed</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

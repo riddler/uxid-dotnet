@@ -273,6 +273,13 @@ public static class Uxid
     /// This checks structure, not origin: any well-formed string passes. It
     /// reads no clock.
     /// </summary>
+    /// <remarks>
+    /// Stricter than the Elixir reference, whose <c>valid?</c> accepts any
+    /// body of at least 8 alphabet characters: here the body must also have
+    /// one of the lengths <see cref="Decode(string, UxidDecodeOptions?)"/>
+    /// lists. The conformance corpus does not fix this answer; the released
+    /// TypeScript and Rust ports read it the same way.
+    /// </remarks>
     /// <param name="id">The string to check; null is not valid.</param>
     /// <param name="delimiter">The delimiter the id was generated with, a non-empty string.</param>
     /// <param name="requiredPrefix">
@@ -302,6 +309,14 @@ public static class Uxid
     /// malformed string is not one, whatever its first body character. It
     /// reads no clock.
     /// </summary>
+    /// <remarks>
+    /// Stricter than the Elixir reference, whose <c>deterministic?</c> checks
+    /// only the first body character: here the whole string must decode, so a
+    /// string that starts with the marker but has a body of no defined
+    /// length, or a character outside the alphabet, is not deterministic. The
+    /// conformance corpus does not fix this answer; the released TypeScript
+    /// and Rust ports read it the same way.
+    /// </remarks>
     /// <param name="id">The string to check; null is not deterministic.</param>
     /// <param name="delimiter">The delimiter the id was generated with, a non-empty string.</param>
     /// <returns>True when the id is well formed and deterministic.</returns>
