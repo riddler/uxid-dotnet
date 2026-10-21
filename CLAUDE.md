@@ -186,8 +186,8 @@ build.
 `README.md` is the user reference (what, why, install, one basic-usage
 block, compatibility, documentation) and ships inside the package
 (`PackageReadmeFile`); `docs/wire-format.md` points at the reference spec at
-the tag `conformance/SOURCE.json` names. `CHANGELOG.md` records each release;
-today it holds only an Unreleased note.
+the tag `conformance/SOURCE.json` names. `CHANGELOG.md` records each release,
+newest first, from 1.0.0.
 
 ## Build & Test
 
